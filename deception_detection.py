@@ -1,7 +1,4 @@
-# ============================================================
 # Linguistic Fingerprinting for Deception Detection
-# Final Comparative + Explainable + BERT Benchmark Pipeline
-# ============================================================
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -33,9 +30,7 @@ from datasets import Dataset
 nltk.download('punkt')
 nltk.download('punkt_tab')
 
-# ============================================================
 # 1️⃣ LOAD DATA
-# ============================================================
 
 df = pd.read_csv("data.csv")
 
@@ -52,9 +47,7 @@ df['text'] = df['text'].astype(str)
 print("Dataset Loaded:", df.shape)
 print(df['label'].value_counts())
 
-# ============================================================
 # 2️⃣ LINGUISTIC FEATURE ENGINEERING
-# ============================================================
 
 class LinguisticFeatures(BaseEstimator, TransformerMixin):
 
@@ -77,9 +70,7 @@ class LinguisticFeatures(BaseEstimator, TransformerMixin):
     def transform(self, X):
         return np.array([self.get_features(t) for t in X])
 
-# ============================================================
 # 3️⃣ TF-IDF + LINGUISTIC HYBRID FEATURES
-# ============================================================
 
 tfidf = TfidfVectorizer(max_features=5000, ngram_range=(1,2), stop_words='english')
 X_text = tfidf.fit_transform(df['text'])
@@ -90,17 +81,13 @@ ling_scaled = StandardScaler().fit_transform(ling)
 X = hstack([X_text, ling_scaled])
 y = df['label']
 
-# ============================================================
 # 4️⃣ TRAIN / TEST SPLIT
-# ============================================================
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, stratify=y, random_state=42
 )
 
-# ============================================================
 # 5️⃣ CLASSICAL MODELS
-# ============================================================
 
 models = {
     "Logistic Regression": LogisticRegression(max_iter=1000),
@@ -116,85 +103,79 @@ for name, model in models.items():
     print("Accuracy:", accuracy_score(y_test, preds))
     print(classification_report(y_test, preds))
 
-# ============================================================
 # 6️⃣ CROSS-VALIDATION
-# ============================================================
 
 print("\nCross-Validation:")
 for name, model in models.items():
     scores = cross_val_score(model, X, y, cv=5)
     print(f"{name}: {scores.mean():.4f}")
 
-# ============================================================
-# 7️⃣ SHAP EXPLAINABILITY (Dense Sample Fix)
-# ============================================================
+# # 7️⃣ SHAP EXPLAINABILITY (Dense Sample Fix)
 
-print("\nRunning SHAP Explainability...")
+# print("\nRunning SHAP Explainability...")
 
-sample_size = min(300, X_train.shape[0])
-X_dense = X_test[:sample_size].toarray()
+# sample_size = min(300, X_train.shape[0])
+# X_dense = X_test[:sample_size].toarray()
 
-explainer = shap.TreeExplainer(models["XGBoost"])
-shap_values = explainer.shap_values(X_dense)
+# explainer = shap.TreeExplainer(models["XGBoost"])
+# shap_values = explainer.shap_values(X_dense)
 
-shap.summary_plot(shap_values, X_dense)
+# # shap.summary_plot(shap_values, X_dense)
 
-# ============================================================
-# 8️⃣ BERT BASELINE
-# ============================================================
+# # 8️⃣ BERT BASELINE
 
-print("\nTraining BERT Baseline...")
+# print("\nTraining BERT Baseline...")
 
-train_texts, test_texts, train_labels, test_labels = train_test_split(
-    df['text'], df['label'], test_size=0.2, stratify=df['label'], random_state=42
-)
+# train_texts, test_texts, train_labels, test_labels = train_test_split(
+#     df['text'], df['label'], test_size=0.2, stratify=df['label'], random_state=42
+# )
 
-train_dataset = Dataset.from_dict({"text": list(train_texts), "labels": list(train_labels)})
-test_dataset  = Dataset.from_dict({"text": list(test_texts),  "labels": list(test_labels)})
+# train_dataset = Dataset.from_dict({"text": list(train_texts), "labels": list(train_labels)})
+# test_dataset  = Dataset.from_dict({"text": list(test_texts),  "labels": list(test_labels)})
 
-tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+# tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
-def tokenize(example):
-    return tokenizer(example["text"], truncation=True, padding="max_length", max_length=256)
+# def tokenize(example):
+#     return tokenizer(example["text"], truncation=True, padding="max_length", max_length=256)
 
-train_dataset = train_dataset.map(tokenize, batched=True)
-test_dataset  = test_dataset.map(tokenize, batched=True)
+# train_dataset = train_dataset.map(tokenize, batched=True)
+# test_dataset  = test_dataset.map(tokenize, batched=True)
 
-train_dataset = train_dataset.remove_columns(["text"])
-test_dataset  = test_dataset.remove_columns(["text"])
+# train_dataset = train_dataset.remove_columns(["text"])
+# test_dataset  = test_dataset.remove_columns(["text"])
 
-train_dataset.set_format("torch")
-test_dataset.set_format("torch")
+# train_dataset.set_format("torch")
+# test_dataset.set_format("torch")
 
-model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=2)
+# model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=2)
 
-training_args = TrainingArguments(
-    output_dir="./bert_output",
-    num_train_epochs=2,
-    per_device_train_batch_size=16,
-    per_device_eval_batch_size=16,
-    save_strategy="no",
-    logging_steps=50,
-    report_to="none"
-)
+# training_args = TrainingArguments(
+#     output_dir="./bert_output",
+#     num_train_epochs=2,
+#     per_device_train_batch_size=16,
+#     per_device_eval_batch_size=16,
+#     save_strategy="no",
+#     logging_steps=50,
+#     report_to="none"
+# )
 
-def compute_metrics(eval_pred):
-    logits, labels = eval_pred
-    preds = np.argmax(logits, axis=1)
-    return {"accuracy": accuracy_score(labels, preds)}
+# def compute_metrics(eval_pred):
+#     logits, labels = eval_pred
+#     preds = np.argmax(logits, axis=1)
+#     return {"accuracy": accuracy_score(labels, preds)}
 
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-    eval_dataset=test_dataset,
-    compute_metrics=compute_metrics
-)
+# trainer = Trainer(
+#     model=model,
+#     args=training_args,
+#     train_dataset=train_dataset,
+#     eval_dataset=test_dataset,
+#     compute_metrics=compute_metrics
+# )
 
-trainer.train()
+# trainer.train()
 
-preds = trainer.predict(test_dataset)
-y_pred = np.argmax(preds.predictions, axis=1)
+# preds = trainer.predict(test_dataset)
+# y_pred = np.argmax(preds.predictions, axis=1)
 
-print("\nBERT Accuracy:", accuracy_score(test_labels, y_pred))
-print(classification_report(test_labels, y_pred))
+# print("\nBERT Accuracy:", accuracy_score(test_labels, y_pred))
+# print(classification_report(test_labels, y_pred))
