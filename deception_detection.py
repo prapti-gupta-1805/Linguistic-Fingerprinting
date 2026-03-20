@@ -1,7 +1,7 @@
-# Linguistic Fingerprinting for Deception Detection
-
-import warnings
-warnings.filterwarnings("ignore")
+# =========================================
+# LINGUISTIC FINGERPRINTING PIPELINE
+# FINAL RESEARCH VERSION (CLEAN + FAIR + FULL METRICS)
+# =========================================
 
 import pandas as pd
 import numpy as np
@@ -10,7 +10,6 @@ import string
 import nltk
 import shap
 import torch
-import seaborn as sns
 import matplotlib.pyplot as plt
 
 from scipy.sparse import hstack
@@ -23,32 +22,44 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.svm import LinearSVC
 from xgboost import XGBClassifier
 
-from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments
+from transformers import (
+    DistilBertTokenizer,
+    DistilBertForSequenceClassification,
+    Trainer,
+    TrainingArguments,
+    DataCollatorWithPadding
+)
 from datasets import Dataset
 
-# Download tokenizer resources (NLTK 3.8+ fix)
 nltk.download('punkt')
-nltk.download('punkt_tab')
 
-# 1️⃣ LOAD DATA
+RANDOM_STATE = 42
 
+# =========================
+# DEVICE
+# =========================
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device:", device)
+
+# =========================
+# LOAD DATA
+# =========================
 df = pd.read_csv("data.csv")
 
 df = df.rename(columns={'text_': 'text'})
 df = df[['text', 'label']].dropna()
 
-# Map labels: CG = fake (1), OR = genuine (0)
 df['label'] = df['label'].map({'CG': 1, 'OR': 0})
 df = df.dropna(subset=['label'])
 
 df['label'] = df['label'].astype(int)
 df['text'] = df['text'].astype(str)
 
-print("Dataset Loaded:", df.shape)
-print(df['label'].value_counts())
+print(f"Dataset Loaded: {df.shape}")
 
-# 2️⃣ LINGUISTIC FEATURE ENGINEERING
-
+# =========================
+# LINGUISTIC FEATURES
+# =========================
 class LinguisticFeatures(BaseEstimator, TransformerMixin):
 
     def get_features(self, text):
@@ -62,17 +73,30 @@ class LinguisticFeatures(BaseEstimator, TransformerMixin):
         punct_count = sum(c in string.punctuation for c in text)
         upper_ratio = sum(1 for c in text if c.isupper()) / len(text) if text else 0
 
-        return [num_words, num_sentences, avg_word_len,
-                lexical_diversity, punct_count, upper_ratio]
+        return [
+            num_words,
+            num_sentences,
+            avg_word_len,
+            lexical_diversity,
+            punct_count,
+            upper_ratio
+        ]
 
-    def fit(self, X, y=None): return self
+    def fit(self, X, y=None):
+        return self
 
     def transform(self, X):
         return np.array([self.get_features(t) for t in X])
 
-# 3️⃣ TF-IDF + LINGUISTIC HYBRID FEATURES
+# =========================
+# FEATURE ENGINEERING
+# =========================
+tfidf = TfidfVectorizer(
+    max_features=5000,
+    ngram_range=(1, 2),
+    stop_words='english'
+)
 
-tfidf = TfidfVectorizer(max_features=5000, ngram_range=(1,2), stop_words='english')
 X_text = tfidf.fit_transform(df['text'])
 
 ling = LinguisticFeatures().transform(df['text'])
@@ -81,102 +105,211 @@ ling_scaled = StandardScaler().fit_transform(ling)
 X = hstack([X_text, ling_scaled])
 y = df['label']
 
-# 4️⃣ TRAIN / TEST SPLIT
+print("Features ready")
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y, random_state=42
-)
-
-# 5️⃣ CLASSICAL MODELS
-
+# =========================
+# MODELS
+# =========================
 models = {
     "Logistic Regression": LogisticRegression(max_iter=1000),
     "Linear SVM": LinearSVC(),
-    "XGBoost": XGBClassifier(n_estimators=200, max_depth=6, learning_rate=0.1, eval_metric='logloss')
+    "XGBoost": XGBClassifier(
+        n_estimators=200,
+        max_depth=6,
+        learning_rate=0.1,
+        eval_metric='logloss'
+    )
 }
 
-for name, model in models.items():
-    print(f"\nTraining {name}...")
-    model.fit(X_train, y_train)
-    preds = model.predict(X_test)
+# =========================
+# METRICS FUNCTION
+# =========================
+def print_model_results(log, name, y_test, preds):
+    acc = accuracy_score(y_test, preds)
+    report = classification_report(y_test, preds, output_dict=True)
+    cm = confusion_matrix(y_test, preds)
 
-    print("Accuracy:", accuracy_score(y_test, preds))
-    print(classification_report(y_test, preds))
+    log("\n" + "="*60)
+    log(f"MODEL: {name}")
+    log("="*60)
+    log(f"Accuracy: {acc:.4f}")
 
-# 6️⃣ CROSS-VALIDATION
+    log("\nClass-wise Performance:")
+    for label, label_name in zip([0,1], ["Genuine (OR)", "Fake (CG)"]):
+        log(f"  {label_name}:")
+        log(f"    Precision: {report[str(label)]['precision']:.4f}")
+        log(f"    Recall:    {report[str(label)]['recall']:.4f}")
+        log(f"    F1-Score:  {report[str(label)]['f1-score']:.4f}")
 
-print("\nCross-Validation:")
-for name, model in models.items():
-    scores = cross_val_score(model, X, y, cv=5)
-    print(f"{name}: {scores.mean():.4f}")
+    log("\nConfusion Matrix:")
+    log("        Pred OR   Pred CG")
+    log(f"Actual OR   {cm[0][0]}         {cm[0][1]}")
+    log(f"Actual CG   {cm[1][0]}         {cm[1][1]}")
 
-# ---------------------------------------------------------------------------------------------
-# 7️⃣ SHAP EXPLAINABILITY (Dense Sample Fix)
+# =========================
+# SPLITS
+# =========================
+splits = [0.1, 0.2, 0.3, 0.4]
 
-print("\nRunning SHAP Explainability...")
+for TEST_SIZE in splits:
 
-sample_size = min(300, X_train.shape[0])
-X_dense = X_test[:sample_size].toarray()
+    TRAIN_SIZE = int((1 - TEST_SIZE) * 100)
+    TEST_PERCENT = int(TEST_SIZE * 100)
 
-explainer = shap.TreeExplainer(models["XGBoost"])
-shap_values = explainer.shap_values(X_dense)
+    RESULT_FILE = f"results_{TRAIN_SIZE}_{TEST_PERCENT}.txt"
+    open(RESULT_FILE, "w").close()
 
-# shap.summary_plot(shap_values, X_dense)
+    def log(msg):
+        print(msg)
+        with open(RESULT_FILE, "a", encoding="utf-8") as f:
+            f.write(msg + "\n")
 
-# 8️⃣ BERT BASELINE
+    log(f"\nRUNNING FOR SPLIT: {TRAIN_SIZE}-{TEST_PERCENT}")
 
-print("\nTraining BERT Baseline...")
+    # SPLIT
+    X_train, X_test, y_train, y_test, train_idx, test_idx = train_test_split(
+        X, y, np.arange(len(df)),
+        test_size=TEST_SIZE,
+        stratify=y,
+        random_state=RANDOM_STATE
+    )
 
-train_texts, test_texts, train_labels, test_labels = train_test_split(
-    df['text'], df['label'], test_size=0.2, stratify=df['label'], random_state=42
-)
+    train_texts = df['text'].iloc[train_idx]
+    test_texts = df['text'].iloc[test_idx]
+    train_labels = y.iloc[train_idx]
+    test_labels = y.iloc[test_idx]
 
-train_dataset = Dataset.from_dict({"text": list(train_texts), "labels": list(train_labels)})
-test_dataset  = Dataset.from_dict({"text": list(test_texts),  "labels": list(test_labels)})
+    results_summary = {}
 
-tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+    # =========================
+    # CLASSICAL MODELS
+    # =========================
+    log("\nTraining Classical Models...")
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        preds = model.predict(X_test)
+        print_model_results(log, name, y_test, preds)
+        results_summary[name] = accuracy_score(y_test, preds)
 
-def tokenize(example):
-    return tokenizer(example["text"], truncation=True, padding="max_length", max_length=256)
+    # =========================
+    # CROSS VALIDATION
+    # =========================
+    log("\nCROSS VALIDATION (5-FOLD)")
+    for name, model in models.items():
+        scores = cross_val_score(model, X_train, y_train, cv=5)
+        log(f"{name}: Mean={scores.mean():.4f}, Std={scores.std():.4f}")
 
-train_dataset = train_dataset.map(tokenize, batched=True)
-test_dataset  = test_dataset.map(tokenize, batched=True)
+    # =========================
+    # SHAP
+    # =========================
+    log("\nRunning SHAP...")
+    sample_size = min(200, X_test.shape[0])
+    X_dense = X_test[:sample_size].toarray()
 
-train_dataset = train_dataset.remove_columns(["text"])
-test_dataset  = test_dataset.remove_columns(["text"])
+    explainer = shap.TreeExplainer(models["XGBoost"])
+    shap_values = explainer.shap_values(X_dense)
 
-train_dataset.set_format("torch")
-test_dataset.set_format("torch")
+    feature_names = tfidf.get_feature_names_out().tolist() + [
+        "num_words", "num_sentences", "avg_word_len",
+        "lexical_diversity", "punct_count", "upper_ratio"
+    ]
 
-model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=2)
+    shap_importance = np.abs(shap_values).mean(axis=0)
+    top_indices = np.argsort(shap_importance)[-10:]
 
-training_args = TrainingArguments(
-    output_dir="./bert_output",
-    num_train_epochs=2,
-    per_device_train_batch_size=16,
-    per_device_eval_batch_size=16,
-    save_strategy="no",
-    logging_steps=50,
-    report_to="none"
-)
+    log("\nTop Features:")
+    for i in reversed(top_indices):
+        log(f"{feature_names[i]}: {shap_importance[i]:.4f}")
 
-def compute_metrics(eval_pred):
-    logits, labels = eval_pred
-    preds = np.argmax(logits, axis=1)
-    return {"accuracy": accuracy_score(labels, preds)}
+    # =========================
+    # BERT (ALL SPLITS)
+    # =========================
+    log("\nTraining DistilBERT...")
 
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-    eval_dataset=test_dataset,
-    compute_metrics=compute_metrics
-)
+    train_dataset = Dataset.from_dict({
+        "text": list(train_texts),
+        "labels": list(train_labels)
+    })
 
-trainer.train()
+    test_dataset = Dataset.from_dict({
+        "text": list(test_texts),
+        "labels": list(test_labels)
+    })
 
-preds = trainer.predict(test_dataset)
-y_pred = np.argmax(preds.predictions, axis=1)
+    tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
 
-print("\nBERT Accuracy:", accuracy_score(test_labels, y_pred))
-print(classification_report(test_labels, y_pred))
+    def tokenize(example):
+        return tokenizer(example["text"], truncation=True)
+
+    train_dataset = train_dataset.map(tokenize, batched=True)
+    test_dataset = test_dataset.map(tokenize, batched=True)
+
+    train_dataset = train_dataset.remove_columns(["text"])
+    test_dataset = test_dataset.remove_columns(["text"])
+
+    train_dataset.set_format("torch")
+    test_dataset.set_format("torch")
+
+    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+
+    bert_model = DistilBertForSequenceClassification.from_pretrained(
+        "distilbert-base-uncased",
+        num_labels=2
+    ).to(device)
+
+    training_args = TrainingArguments(
+        output_dir=f"./bert_output_{TRAIN_SIZE}_{TEST_PERCENT}",
+        num_train_epochs=2,
+        per_device_train_batch_size=16,
+        per_device_eval_batch_size=32,
+        save_strategy="no",
+        report_to="none",
+        fp16=torch.cuda.is_available()
+    )
+
+    trainer = Trainer(
+        model=bert_model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=test_dataset,
+        data_collator=data_collator
+    )
+
+    trainer.train()
+
+    preds = trainer.predict(test_dataset)
+    y_pred = np.argmax(preds.predictions, axis=1)
+
+    bert_acc = accuracy_score(test_labels, y_pred)
+    print_model_results(log, "DistilBERT", test_labels, y_pred)
+
+    results_summary["DistilBERT"] = bert_acc
+
+    # =========================
+    # FINAL PLOT
+    # =========================
+    plot_models = list(results_summary.keys())
+    plot_scores = list(results_summary.values())
+
+    plt.figure()
+    bars = plt.bar(plot_models, plot_scores)
+
+    plt.xlabel("Models")
+    plt.ylabel("Accuracy")
+    plt.title(f"Model Comparison ({TRAIN_SIZE}-{TEST_PERCENT} Split)")
+
+    min_score = min(plot_scores)
+    max_score = max(plot_scores)
+    plt.ylim(min_score - 0.02, max_score + 0.02)
+
+    for bar, score in zip(bars, plot_scores):
+        plt.text(bar.get_x() + bar.get_width()/2, score, f"{score:.3f}",
+                ha='center', va='bottom')
+
+    plt.xticks(rotation=30)
+
+    plot_file = f"plot_{TRAIN_SIZE}_{TEST_PERCENT}.png"
+    plt.savefig(plot_file, bbox_inches='tight')
+    plt.close()
+
+    log(f"\nSaved plot: {plot_file}")

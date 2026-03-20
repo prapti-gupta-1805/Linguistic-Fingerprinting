@@ -1,13 +1,11 @@
-# requirements.txt
 pandas
 numpy
-nltk
-shap
-torch
-seaborn
-matplotlib
 scipy
 scikit-learn
 xgboost
+nltk
+shap
+matplotlib
+torch
 transformers
 datasets

@@ -1,0 +1,107 @@
+
+RUNNING FOR SPLIT: 90-10
+
+Training Classical Models...
+
+============================================================
+MODEL: Logistic Regression
+============================================================
+Accuracy: 0.9036
+
+Class-wise Performance:
+  Genuine (OR):
+    Precision: 0.8957
+    Recall:    0.9135
+    F1-Score:  0.9045
+  Fake (CG):
+    Precision: 0.9117
+    Recall:    0.8937
+    F1-Score:  0.9026
+
+Confusion Matrix:
+        Pred OR   Pred CG
+Actual OR   1847         175
+Actual CG   215         1807
+
+============================================================
+MODEL: Linear SVM
+============================================================
+Accuracy: 0.9095
+
+Class-wise Performance:
+  Genuine (OR):
+    Precision: 0.9055
+    Recall:    0.9144
+    F1-Score:  0.9099
+  Fake (CG):
+    Precision: 0.9136
+    Recall:    0.9045
+    F1-Score:  0.9090
+
+Confusion Matrix:
+        Pred OR   Pred CG
+Actual OR   1849         173
+Actual CG   193         1829
+
+============================================================
+MODEL: XGBoost
+============================================================
+Accuracy: 0.8961
+
+Class-wise Performance:
+  Genuine (OR):
+    Precision: 0.8915
+    Recall:    0.9021
+    F1-Score:  0.8968
+  Fake (CG):
+    Precision: 0.9009
+    Recall:    0.8902
+    F1-Score:  0.8955
+
+Confusion Matrix:
+        Pred OR   Pred CG
+Actual OR   1824         198
+Actual CG   222         1800
+
+CROSS VALIDATION (5-FOLD)
+Logistic Regression: Mean=0.8927, Std=0.0028
+Linear SVM: Mean=0.9003, Std=0.0043
+XGBoost: Mean=0.8932, Std=0.0036
+
+Running SHAP...
+
+Top Features:
+bought friend: 0.9129
+trs: 0.8475
+problem kind: 0.7005
+num_words: 0.6289
+lexical_diversity: 0.6125
+avg_word_len: 0.6097
+punct_count: 0.5550
+isn: 0.5302
+fan: 0.4704
+plus: 0.4594
+
+Training DistilBERT...
+
+============================================================
+MODEL: DistilBERT
+============================================================
+Accuracy: 0.9824
+
+Class-wise Performance:
+  Genuine (OR):
+    Precision: 0.9914
+    Recall:    0.9733
+    F1-Score:  0.9823
+  Fake (CG):
+    Precision: 0.9738
+    Recall:    0.9916
+    F1-Score:  0.9826
+
+Confusion Matrix:
+        Pred OR   Pred CG
+Actual OR   1968         54
+Actual CG   17         2005
+
+Saved plot: plot_90_10.png
