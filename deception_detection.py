@@ -1,6 +1,5 @@
 # =========================================
 # LINGUISTIC FINGERPRINTING PIPELINE
-# FINAL RESEARCH VERSION (CLEAN + FAIR + FULL METRICS)
 # =========================================
 
 import pandas as pd
