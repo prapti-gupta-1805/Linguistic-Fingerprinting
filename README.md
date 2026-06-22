@@ -1,27 +1,44 @@
 # Linguistic Fingerprinting for Deception Detection
 
-An NLP and machine learning project for detecting deceptive online reviews using hybrid feature engineering, classical machine learning, and transformer-based language models.
+A machine learning project for detecting deceptive online reviews using TF-IDF features, linguistic feature engineering, classical machine learning models, and a DistilBERT baseline.
 
 ## Overview
 
-This project explores whether deceptive reviews exhibit identifiable linguistic fingerprints that can be used for automated classification.
+This project investigates whether linguistic characteristics of text can help distinguish between genuine and deceptive reviews.
 
-The system combines TF-IDF representations with handcrafted linguistic features such as lexical diversity, sentence structure, punctuation usage, and capitalization patterns. Multiple machine learning models were evaluated and compared against a fine-tuned DistilBERT baseline.
+The approach combines TF-IDF representations with manually engineered linguistic features such as lexical diversity, sentence count, punctuation usage, and capitalization patterns. Multiple machine learning models are evaluated and compared against a fine-tuned DistilBERT baseline.
 
-Experiments were conducted on a balanced dataset containing **40,432 online reviews**.
+The dataset contains **40,432 reviews**, evenly split between authentic and computer-generated reviews.
+
+---
+
+## Project Workflow
+
+![Workflow](workflow.png)
+
+The pipeline consists of:
+
+1. Data preprocessing and cleaning
+2. TF-IDF feature extraction (unigrams and bigrams)
+3. Linguistic feature extraction
+4. Feature normalization and concatenation
+5. Model training and evaluation
+6. Cross-validation
+7. SHAP explainability analysis
+8. Comparison with a DistilBERT baseline
 
 ---
 
 ## Tech Stack
 
-### Data Processing & NLP
+### Data Processing
 - Python
 - Pandas
 - NumPy
 - NLTK
-- Scikit-learn
 
 ### Machine Learning
+- Scikit-learn
 - TF-IDF
 - Logistic Regression
 - Linear SVM
@@ -30,8 +47,6 @@ Experiments were conducted on a balanced dataset containing **40,432 online revi
 ### Deep Learning
 - PyTorch
 - DistilBERT
-- Hugging Face Transformers
-- Hugging Face Datasets
 
 ### Explainability & Visualization
 - SHAP
@@ -39,33 +54,37 @@ Experiments were conducted on a balanced dataset containing **40,432 online revi
 
 ---
 
-## Methodology
+## Dataset
 
-### Data Preprocessing
+**Fake Reviews Dataset (Kaggle)**
 
-- Missing value removal
-- Label encoding
-- Text normalization
-- Tokenization using NLTK
-- Stop-word removal
+- Total Reviews: 40,432
+- Authentic Reviews (OR): 20,216
+- Computer-Generated Reviews (CG): 20,216
 
-### Feature Engineering
+Dataset:
+https://www.kaggle.com/datasets/mexwell/fake-reviews-dataset
 
-#### TF-IDF Features
+---
 
-- Unigrams and bigrams
-- Maximum feature size: 5000
+## Feature Engineering
 
-#### Linguistic Fingerprinting Features
+### TF-IDF Features
+
+- Unigrams
+- Bigrams
+- Maximum 5000 features
+
+### Linguistic Features
 
 - Word count
 - Sentence count
 - Average word length
 - Lexical diversity
-- Punctuation frequency
+- Punctuation count
 - Uppercase character ratio
 
-The linguistic features were normalized and combined with TF-IDF vectors to create a hybrid feature space.
+The linguistic features are normalized and combined with TF-IDF vectors to create a hybrid feature representation.
 
 ---
 
@@ -79,27 +98,49 @@ The linguistic features were normalized and combined with TF-IDF vectors to crea
 
 ### Transformer Baseline
 
-- DistilBERT fine-tuned for binary text classification
+- DistilBERT (fine-tuned for binary classification)
 
 ---
 
 ## Results
 
-| Model | Best Accuracy |
+| Model | Accuracy |
 |---------|------------|
 | Logistic Regression | 90.36% |
 | Linear SVM | 90.95% |
-| XGBoost | 89.93% |
+| XGBoost | 89.61% |
 | DistilBERT | 98.24% |
+
+### DistilBERT Metrics (90:10 Split)
+
+| Metric | Score |
+|----------|--------|
+| Accuracy | 98.24% |
+| Precision | 99.14% |
+| Recall | 97.33% |
+| F1 Score | 98.23% |
 
 ### Key Findings
 
-- Linear SVM achieved the strongest performance among traditional machine learning models.
-- DistilBERT achieved **98.24% accuracy**, **99.14% precision**, and **98.26% F1-score**.
-- Transformer-based approaches outperformed classical machine learning models by more than **7 percentage points**.
-- Linguistic fingerprinting features improved both classification performance and interpretability.
-- SHAP analysis highlighted lexical diversity, review length, and stylistic patterns as influential indicators of deception.
+- Linear SVM achieved the strongest performance among classical machine learning models, reaching 90.95% accuracy.
+- DistilBERT achieved 98.24% accuracy and outperformed all classical baselines across every train-test split.
+- Model performance improved gradually as the proportion of training data increased.
+- Linguistic features such as lexical diversity, average word length, and review length contributed meaningfully to classification performance.
 
+---
+
+## Explainability
+
+SHAP analysis was applied to the XGBoost model to identify influential features.
+
+Important features included:
+
+- Lexical diversity
+- Average word length
+- Review length
+- TF-IDF n-gram features
+
+---
 
 ## Installation
 
@@ -115,4 +156,4 @@ python deception_detection.py
 
 ## License
 
-This project is intended for educational and research purposes.
+For educational and research purposes.
