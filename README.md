@@ -2,13 +2,15 @@
 
 A machine learning project for detecting deceptive online reviews using TF-IDF features, linguistic feature engineering, classical machine learning models, and a DistilBERT baseline.
 
+**Key Results:** 98.24% Accuracy • 99.14% Precision • 98.23% F1 Score
+
 ## Overview
 
 This project investigates whether linguistic characteristics of text can help distinguish between genuine and deceptive reviews.
 
-The approach combines TF-IDF representations with manually engineered linguistic features such as lexical diversity, sentence count, punctuation usage, and capitalization patterns. Multiple machine learning models are evaluated and compared against a fine-tuned DistilBERT baseline.
+The approach combines TF-IDF representations with engineered linguistic features such as lexical diversity, sentence count, punctuation usage, and capitalization patterns. Multiple machine learning models are evaluated and compared against a fine-tuned DistilBERT baseline.
 
-The dataset contains **40,432 reviews**, evenly split between authentic and computer-generated reviews.
+The dataset contains **40,432 reviews**, evenly split between authentic and deceptive reviews.
 
 ---
 
@@ -60,7 +62,7 @@ The pipeline consists of:
 
 - Total Reviews: 40,432
 - Authentic Reviews (OR): 20,216
-- Computer-Generated Reviews (CG): 20,216
+- Deceptive Reviews (CG): 20,216
 
 Dataset:
 https://www.kaggle.com/datasets/mexwell/fake-reviews-dataset
@@ -120,6 +122,8 @@ The linguistic features are normalized and combined with TF-IDF vectors to creat
 | Recall | 97.33% |
 | F1 Score | 98.23% |
 
+DistilBERT achieved the highest overall performance, while Linear SVM emerged as the strongest classical machine learning baseline.
+
 ### Key Findings
 
 - Linear SVM achieved the strongest performance among classical machine learning models, reaching 90.95% accuracy.
@@ -153,7 +157,3 @@ pip install -r requirements.txt
 ```bash
 python deception_detection.py
 ```
-
-## License
-
-For educational and research purposes.
