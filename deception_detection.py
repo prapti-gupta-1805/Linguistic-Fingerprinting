@@ -121,6 +121,36 @@ models = {
     )
 }
 
+def plot_confusion_matrix(cm, model_name, split_name):
+    plt.figure(figsize=(5,4))
+    plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+    plt.title(f"{model_name} Confusion Matrix ({split_name})")
+    plt.colorbar()
+
+    classes = ["OR", "CG"]
+    tick_marks = np.arange(len(classes))
+
+    plt.xticks(tick_marks, classes)
+    plt.yticks(tick_marks, classes)
+
+    thresh = cm.max() / 2
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            plt.text(
+                j, i,
+                str(cm[i, j]),
+                ha="center",
+                color="white" if cm[i, j] > thresh else "black"
+            )
+
+    plt.ylabel("Actual")
+    plt.xlabel("Predicted")
+    plt.tight_layout()
+
+    filename = f"confusion_{model_name.replace(' ', '_')}_{split_name}.png"
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
+
 # =========================
 # METRICS FUNCTION
 # =========================
@@ -149,22 +179,23 @@ def print_model_results(log, name, y_test, preds):
 # =========================
 # SPLITS
 # =========================
-splits = [0.1, 0.2, 0.3, 0.4]
-
+# splits = [0.1, 0.2, 0.3, 0.4]
+splits = [0.1]
 for TEST_SIZE in splits:
 
     TRAIN_SIZE = int((1 - TEST_SIZE) * 100)
     TEST_PERCENT = int(TEST_SIZE * 100)
 
-    RESULT_FILE = f"results_{TRAIN_SIZE}_{TEST_PERCENT}.txt"
-    open(RESULT_FILE, "w").close()
+    # RESULT_FILE = f"results_{TRAIN_SIZE}_{TEST_PERCENT}.txt"
+    # open(RESULT_FILE, "w").close()
 
     def log(msg):
-        print(msg)
-        with open(RESULT_FILE, "a", encoding="utf-8") as f:
-            f.write(msg + "\n")
+        pass
+    #     print(msg)
+    #     with open(RESULT_FILE, "a", encoding="utf-8") as f:
+    #         f.write(msg + "\n")
 
-    log(f"\nRUNNING FOR SPLIT: {TRAIN_SIZE}-{TEST_PERCENT}")
+    # log(f"\nRUNNING FOR SPLIT: {TRAIN_SIZE}-{TEST_PERCENT}")
 
     # SPLIT
     X_train, X_test, y_train, y_test, train_idx, test_idx = train_test_split(
@@ -188,41 +219,46 @@ for TEST_SIZE in splits:
     for name, model in models.items():
         model.fit(X_train, y_train)
         preds = model.predict(X_test)
-        print_model_results(log, name, y_test, preds)
+
+        # print_model_results(log, name, y_test, preds)
+
+        cm = confusion_matrix(y_test, preds)
+        plot_confusion_matrix(cm, name, f"{TRAIN_SIZE}_{TEST_PERCENT}")
+
         results_summary[name] = accuracy_score(y_test, preds)
 
     # =========================
     # CROSS VALIDATION
     # =========================
-    log("\nCROSS VALIDATION (5-FOLD)")
-    for name, model in models.items():
-        scores = cross_val_score(model, X_train, y_train, cv=5)
-        log(f"{name}: Mean={scores.mean():.4f}, Std={scores.std():.4f}")
+    # log("\nCROSS VALIDATION (5-FOLD)")
+    # for name, model in models.items():
+    #     scores = cross_val_score(model, X_train, y_train, cv=5)
+    #     log(f"{name}: Mean={scores.mean():.4f}, Std={scores.std():.4f}")
 
     # =========================
     # SHAP
     # =========================
-    log("\nRunning SHAP...")
-    sample_size = min(200, X_test.shape[0])
-    X_dense = X_test[:sample_size].toarray()
+    # log("\nRunning SHAP...")
+    # sample_size = min(200, X_test.shape[0])
+    # X_dense = X_test[:sample_size].toarray()
 
-    explainer = shap.TreeExplainer(models["XGBoost"])
-    shap_values = explainer.shap_values(X_dense)
+    # explainer = shap.TreeExplainer(models["XGBoost"])
+    # shap_values = explainer.shap_values(X_dense)
 
-    feature_names = tfidf.get_feature_names_out().tolist() + [
-        "num_words", "num_sentences", "avg_word_len",
-        "lexical_diversity", "punct_count", "upper_ratio"
-    ]
+    # feature_names = tfidf.get_feature_names_out().tolist() + [
+    #     "num_words", "num_sentences", "avg_word_len",
+    #     "lexical_diversity", "punct_count", "upper_ratio"
+    # ]
 
-    shap_importance = np.abs(shap_values).mean(axis=0)
-    top_indices = np.argsort(shap_importance)[-10:]
+    # shap_importance = np.abs(shap_values).mean(axis=0)
+    # top_indices = np.argsort(shap_importance)[-10:]
 
-    log("\nTop Features:")
-    for i in reversed(top_indices):
-        log(f"{feature_names[i]}: {shap_importance[i]:.4f}")
+    # log("\nTop Features:")
+    # for i in reversed(top_indices):
+    #     log(f"{feature_names[i]}: {shap_importance[i]:.4f}")
 
     # =========================
-    # BERT (ALL SPLITS)
+    # BERT
     # =========================
     log("\nTraining DistilBERT...")
 
@@ -258,7 +294,9 @@ for TEST_SIZE in splits:
     ).to(device)
 
     training_args = TrainingArguments(
-        output_dir=f"./bert_output_{TRAIN_SIZE}_{TEST_PERCENT}",
+        # output_dir=f"./bert_output_{TRAIN_SIZE}_{TEST_PERCENT}",
+        output_dir="./temp",
+        # overwrite_output_dir=True,
         num_train_epochs=2,
         per_device_train_batch_size=16,
         per_device_eval_batch_size=32,
@@ -281,35 +319,39 @@ for TEST_SIZE in splits:
     y_pred = np.argmax(preds.predictions, axis=1)
 
     bert_acc = accuracy_score(test_labels, y_pred)
-    print_model_results(log, "DistilBERT", test_labels, y_pred)
 
-    results_summary["DistilBERT"] = bert_acc
+    # print_model_results(log, "DistilBERT", test_labels, y_pred)
+
+    cm = confusion_matrix(test_labels, y_pred)
+    plot_confusion_matrix(cm, "DistilBERT", f"{TRAIN_SIZE}_{TEST_PERCENT}")
+
+    # results_summary["DistilBERT"] = bert_acc
 
     # =========================
     # FINAL PLOT
     # =========================
-    plot_models = list(results_summary.keys())
-    plot_scores = list(results_summary.values())
+    # plot_models = list(results_summary.keys())
+    # plot_scores = list(results_summary.values())
 
-    plt.figure()
-    bars = plt.bar(plot_models, plot_scores)
+    # plt.figure()
+    # bars = plt.bar(plot_models, plot_scores)
 
-    plt.xlabel("Models")
-    plt.ylabel("Accuracy")
-    plt.title(f"Model Comparison ({TRAIN_SIZE}-{TEST_PERCENT} Split)")
+    # plt.xlabel("Models")
+    # plt.ylabel("Accuracy")
+    # plt.title(f"Model Comparison ({TRAIN_SIZE}-{TEST_PERCENT} Split)")
 
-    min_score = min(plot_scores)
-    max_score = max(plot_scores)
-    plt.ylim(min_score - 0.02, max_score + 0.02)
+    # min_score = min(plot_scores)
+    # max_score = max(plot_scores)
+    # plt.ylim(min_score - 0.02, max_score + 0.02)
 
-    for bar, score in zip(bars, plot_scores):
-        plt.text(bar.get_x() + bar.get_width()/2, score, f"{score:.3f}",
-                ha='center', va='bottom')
+    # for bar, score in zip(bars, plot_scores):
+    #     plt.text(bar.get_x() + bar.get_width()/2, score, f"{score:.3f}",
+    #             ha='center', va='bottom')
 
-    plt.xticks(rotation=30)
+    # plt.xticks(rotation=30)
 
-    plot_file = f"plot_{TRAIN_SIZE}_{TEST_PERCENT}.png"
-    plt.savefig(plot_file, bbox_inches='tight')
-    plt.close()
+    # plot_file = f"plot_{TRAIN_SIZE}_{TEST_PERCENT}.png"
+    # plt.savefig(plot_file, bbox_inches='tight')
+    # plt.close()
 
-    log(f"\nSaved plot: {plot_file}")
+    # log(f"\nSaved plot: {plot_file}")
